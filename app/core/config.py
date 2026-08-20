@@ -15,6 +15,7 @@ class Settings(BaseModel):
     debug: bool = Field(default=False)
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8000, ge=1, le=65535)
+    database_url: str | None = Field(default=None)
 
 
 def _read_env_file() -> dict[str, str]:
@@ -39,7 +40,7 @@ def get_settings() -> Settings:
     """Return the cached application settings instance."""
 
     file_values = _read_env_file()
-    setting_names = ("app_name", "app_env", "debug", "host", "port")
+    setting_names = ("app_name", "app_env", "debug", "host", "port", "database_url")
     environment_values = {}
     for name in setting_names:
         environment_key = f"CLINIC_{name.upper()}"
