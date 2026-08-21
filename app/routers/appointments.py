@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceError
 from app.database.connection import get_db_session
-from app.schemas.appointment import AppointmentCreate, AppointmentResponse
-from app.services.appointments import book_appointment
+from app.schemas.appointment import AppointmentCancellation, AppointmentCreate, AppointmentResponse
+from app.services.appointments import book_appointment, cancel_appointment
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -20,5 +20,19 @@ def create_appointment(
 
     try:
         return book_appointment(session, appointment_data)
+    except ServiceError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+
+
+@router.patch("/{appointment_id}/cancel", response_model=AppointmentResponse)
+def cancel_existing_appointment(
+    appointment_id: int,
+    cancellation_data: AppointmentCancellation,
+    session: Session = Depends(get_db_session),
+) -> AppointmentResponse:
+    """Cancel an appointment and release its slot for future booking."""
+
+    try:
+        return cancel_appointment(session, appointment_id, cancellation_data)
     except ServiceError as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from error

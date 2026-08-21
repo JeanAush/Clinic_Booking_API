@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.appointment import AppointmentStatus
 
@@ -23,6 +23,12 @@ class AppointmentCreate(BaseModel):
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("Datetime values must include a timezone offset.")
         return value
+
+
+class AppointmentCancellation(BaseModel):
+    """Reason supplied when cancelling an appointment."""
+
+    reason: str = Field(min_length=1, max_length=500)
 
 
 class AppointmentResponse(BaseModel):
