@@ -31,6 +31,22 @@ class AppointmentCancellation(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
+class AppointmentReschedule(BaseModel):
+    """Replacement time range for an existing appointment."""
+
+    start_time: datetime
+    end_time: datetime
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        """Reject ambiguous datetimes before they reach booking logic."""
+
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Datetime values must include a timezone offset.")
+        return value
+
+
 class AppointmentResponse(BaseModel):
     """Appointment returned after a successful booking."""
 

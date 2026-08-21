@@ -5,8 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceError
 from app.database.connection import get_db_session
-from app.schemas.appointment import AppointmentCancellation, AppointmentCreate, AppointmentResponse
-from app.services.appointments import book_appointment, cancel_appointment
+from app.schemas.appointment import (
+    AppointmentCancellation,
+    AppointmentCreate,
+    AppointmentReschedule,
+    AppointmentResponse,
+)
+from app.services.appointments import book_appointment, cancel_appointment, reschedule_appointment
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -34,5 +39,19 @@ def cancel_existing_appointment(
 
     try:
         return cancel_appointment(session, appointment_id, cancellation_data)
+    except ServiceError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+
+
+@router.patch("/{appointment_id}/reschedule", response_model=AppointmentResponse)
+def reschedule_existing_appointment(
+    appointment_id: int,
+    reschedule_data: AppointmentReschedule,
+    session: Session = Depends(get_db_session),
+) -> AppointmentResponse:
+    """Move an active appointment to a different valid slot."""
+
+    try:
+        return reschedule_appointment(session, appointment_id, reschedule_data)
     except ServiceError as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from error
