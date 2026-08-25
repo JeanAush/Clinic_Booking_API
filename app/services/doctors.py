@@ -1,24 +1,20 @@
 """Doctor management operations."""
 
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import NotFoundError
 from app.models.doctor import Doctor
+from app.repositories.doctors import DoctorRepository
 from app.schemas.doctor import DoctorCreate
+from app.services.transactions import commit_or_raise_conflict
 
 
 def create_doctor(session: Session, doctor_data: DoctorCreate) -> Doctor:
     """Create a doctor, preserving the database's unique-email safeguard."""
 
     doctor = Doctor(**doctor_data.model_dump())
-    session.add(doctor)
-    try:
-        session.commit()
-    except IntegrityError as error:
-        session.rollback()
-        raise ConflictError("A doctor with this email already exists.") from error
+    DoctorRepository(session).add(doctor)
+    commit_or_raise_conflict(session, "A doctor with this email already exists.")
     session.refresh(doctor)
     return doctor
 
@@ -26,7 +22,7 @@ def create_doctor(session: Session, doctor_data: DoctorCreate) -> Doctor:
 def get_doctor(session: Session, doctor_id: int) -> Doctor:
     """Return one doctor or report that it does not exist."""
 
-    doctor = session.get(Doctor, doctor_id)
+    doctor = DoctorRepository(session).get(doctor_id)
     if doctor is None:
         raise NotFoundError("Doctor not found.")
     return doctor
@@ -35,4 +31,4 @@ def get_doctor(session: Session, doctor_id: int) -> Doctor:
 def list_doctors(session: Session) -> list[Doctor]:
     """Return all doctors in stable ID order."""
 
-    return list(session.scalars(select(Doctor).order_by(Doctor.id.asc())))
+    return DoctorRepository(session).list_all()

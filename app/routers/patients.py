@@ -1,10 +1,9 @@
 """Patient HTTP endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.exceptions import ServiceError
 from app.database.connection import get_db_session
 from app.schemas.appointment import AppointmentResponse
 from app.schemas.patient import PatientCreate, PatientResponse
@@ -21,10 +20,7 @@ def create_new_patient(
 ) -> PatientResponse:
     """Register a patient."""
 
-    try:
-        return create_patient(session, patient_data)
-    except ServiceError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return create_patient(session, patient_data)
 
 
 @router.get("", response_model=list[PatientResponse])
@@ -41,10 +37,7 @@ def get_registered_patient(
 ) -> PatientResponse:
     """Retrieve one patient by ID."""
 
-    try:
-        return get_patient(session, patient_id)
-    except ServiceError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return get_patient(session, patient_id)
 
 
 @router.get("/{patient_id}/appointments", response_model=list[AppointmentResponse])
@@ -54,7 +47,4 @@ def list_upcoming_appointments(
 ) -> list[AppointmentResponse]:
     """List a patient's upcoming appointments in chronological order."""
 
-    try:
-        return get_upcoming_patient_appointments(session, patient_id, get_settings().timezone)
-    except ServiceError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return get_upcoming_patient_appointments(session, patient_id, get_settings().timezone)

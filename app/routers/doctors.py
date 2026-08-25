@@ -2,11 +2,10 @@
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.exceptions import ServiceError
 from app.database.connection import get_db_session
 from app.schemas.availability import DoctorAvailabilityResponse
 from app.schemas.doctor import DoctorCreate, DoctorResponse
@@ -23,10 +22,7 @@ def create_new_doctor(
 ) -> DoctorResponse:
     """Register a doctor with a daily working window."""
 
-    try:
-        return create_doctor(session, doctor_data)
-    except ServiceError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return create_doctor(session, doctor_data)
 
 
 @router.get("", response_model=list[DoctorResponse])
@@ -43,10 +39,7 @@ def get_registered_doctor(
 ) -> DoctorResponse:
     """Retrieve one doctor by ID."""
 
-    try:
-        return get_doctor(session, doctor_id)
-    except ServiceError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return get_doctor(session, doctor_id)
 
 
 @router.get("/{doctor_id}/availability", response_model=DoctorAvailabilityResponse)
@@ -57,10 +50,5 @@ def get_availability(
 ) -> DoctorAvailabilityResponse:
     """List a doctor's available 30-minute slots for a clinic-local date."""
 
-    try:
-        slots = get_doctor_availability(
-            session, doctor_id, appointment_date, get_settings().timezone
-        )
-    except ServiceError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    slots = get_doctor_availability(session, doctor_id, appointment_date, get_settings().timezone)
     return DoctorAvailabilityResponse(doctor_id=doctor_id, date=appointment_date, slots=slots)

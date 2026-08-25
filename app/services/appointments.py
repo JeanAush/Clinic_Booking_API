@@ -1,15 +1,16 @@
 """Appointment booking operations."""
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.appointment import Appointment, AppointmentStatus
-from app.models.doctor import Doctor
-from app.models.patient import Patient
+from app.repositories.appointments import AppointmentRepository
+from app.repositories.doctors import DoctorRepository
+from app.repositories.patients import PatientRepository
 from app.schemas.appointment import AppointmentCancellation, AppointmentCreate, AppointmentReschedule
 from app.services.appointment_rules import validate_appointment_schedule
+from app.services.transactions import commit_or_raise_conflict
 
 ACTIVE_SLOT_CONSTRAINT = "ex_appointments_active_doctor_time"
 
@@ -17,11 +18,11 @@ ACTIVE_SLOT_CONSTRAINT = "ex_appointments_active_doctor_time"
 def book_appointment(session: Session, appointment_data: AppointmentCreate) -> Appointment:
     """Validate and persist a booking, including database conflict protection."""
 
-    doctor = session.get(Doctor, appointment_data.doctor_id)
+    doctor = DoctorRepository(session).get(appointment_data.doctor_id)
     if doctor is None:
         raise NotFoundError("Doctor not found.")
 
-    patient = session.get(Patient, appointment_data.patient_id)
+    patient = PatientRepository(session).get(appointment_data.patient_id)
     if patient is None:
         raise NotFoundError("Patient not found.")
 
@@ -38,14 +39,12 @@ def book_appointment(session: Session, appointment_data: AppointmentCreate) -> A
         end_time=appointment_data.end_time,
         status=AppointmentStatus.BOOKED,
     )
-    session.add(appointment)
-    try:
-        session.commit()
-    except IntegrityError as error:
-        session.rollback()
-        if _is_active_slot_conflict(error):
-            raise ConflictError("This doctor is no longer available for the selected slot.") from error
-        raise
+    AppointmentRepository(session).add(appointment)
+    commit_or_raise_conflict(
+        session,
+        "This doctor is no longer available for the selected slot.",
+        ACTIVE_SLOT_CONSTRAINT,
+    )
 
     session.refresh(appointment)
     return appointment
@@ -58,7 +57,7 @@ def cancel_appointment(
 ) -> Appointment:
     """Cancel an active appointment and record why it was cancelled."""
 
-    appointment = session.get(Appointment, appointment_id)
+    appointment = AppointmentRepository(session).get(appointment_id)
     if appointment is None:
         raise NotFoundError("Appointment not found.")
     if appointment.status == AppointmentStatus.CANCELLED:
@@ -78,13 +77,13 @@ def reschedule_appointment(
 ) -> Appointment:
     """Move an active appointment to a valid, unoccupied slot atomically."""
 
-    appointment = session.get(Appointment, appointment_id)
+    appointment = AppointmentRepository(session).get(appointment_id)
     if appointment is None:
         raise NotFoundError("Appointment not found.")
     if appointment.status == AppointmentStatus.CANCELLED:
         raise ConflictError("Cancelled appointments cannot be rescheduled.")
 
-    doctor = session.get(Doctor, appointment.doctor_id)
+    doctor = DoctorRepository(session).get(appointment.doctor_id)
     if doctor is None:
         raise NotFoundError("Doctor not found.")
     validate_appointment_schedule(
@@ -96,20 +95,11 @@ def reschedule_appointment(
 
     appointment.start_time = reschedule_data.start_time
     appointment.end_time = reschedule_data.end_time
-    try:
-        session.commit()
-    except IntegrityError as error:
-        session.rollback()
-        if _is_active_slot_conflict(error):
-            raise ConflictError("This doctor is no longer available for the selected slot.") from error
-        raise
+    commit_or_raise_conflict(
+        session,
+        "This doctor is no longer available for the selected slot.",
+        ACTIVE_SLOT_CONSTRAINT,
+    )
 
     session.refresh(appointment)
     return appointment
-
-
-def _is_active_slot_conflict(error: IntegrityError) -> bool:
-    """Identify the PostgreSQL exclusion constraint behind a booking conflict."""
-
-    diagnostics = getattr(error.orig, "diag", None)
-    return getattr(diagnostics, "constraint_name", None) == ACTIVE_SLOT_CONSTRAINT

@@ -1,4 +1,7 @@
-"""Domain errors returned by application services."""
+"""Domain errors and their HTTP response translation."""
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 
 class ServiceError(Exception):
@@ -27,3 +30,9 @@ class ConflictError(ServiceError):
     """Raised when a valid request conflicts with existing state."""
 
     status_code = 409
+
+
+async def service_error_response(_: Request, error: ServiceError) -> JSONResponse:
+    """Convert a domain error to the established API error response shape."""
+
+    return JSONResponse(status_code=error.status_code, content={"detail": error.detail})

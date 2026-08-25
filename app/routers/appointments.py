@@ -1,9 +1,8 @@
 """Appointment booking HTTP endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ServiceError
 from app.database.connection import get_db_session
 from app.schemas.appointment import (
     AppointmentCancellation,
@@ -23,10 +22,7 @@ def create_appointment(
 ) -> AppointmentResponse:
     """Book a doctor's currently available 30-minute appointment slot."""
 
-    try:
-        return book_appointment(session, appointment_data)
-    except ServiceError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return book_appointment(session, appointment_data)
 
 
 @router.patch("/{appointment_id}/cancel", response_model=AppointmentResponse)
@@ -37,10 +33,7 @@ def cancel_existing_appointment(
 ) -> AppointmentResponse:
     """Cancel an appointment and release its slot for future booking."""
 
-    try:
-        return cancel_appointment(session, appointment_id, cancellation_data)
-    except ServiceError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return cancel_appointment(session, appointment_id, cancellation_data)
 
 
 @router.patch("/{appointment_id}/reschedule", response_model=AppointmentResponse)
@@ -51,7 +44,4 @@ def reschedule_existing_appointment(
 ) -> AppointmentResponse:
     """Move an active appointment to a different valid slot."""
 
-    try:
-        return reschedule_appointment(session, appointment_id, reschedule_data)
-    except ServiceError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return reschedule_appointment(session, appointment_id, reschedule_data)

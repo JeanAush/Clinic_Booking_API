@@ -1,14 +1,14 @@
 """Patient appointment retrieval operations."""
 
-from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
 from app.models.appointment import Appointment
-from app.models.patient import Patient
+from app.repositories.appointments import AppointmentRepository
+from app.repositories.patients import PatientRepository
+from app.utils.timezones import clinic_now, utc_time
 
 
 def get_upcoming_patient_appointments(
@@ -19,19 +19,11 @@ def get_upcoming_patient_appointments(
 ) -> list[Appointment]:
     """Return a patient's appointments whose starts have not yet passed."""
 
-    patient = session.get(Patient, patient_id)
+    patient = PatientRepository(session).get(patient_id)
     if patient is None:
         raise NotFoundError("Patient not found.")
 
-    clinic_timezone = ZoneInfo(timezone_name)
-    current_time = (now or datetime.now(clinic_timezone)).astimezone(UTC)
-    return list(
-        session.scalars(
-            select(Appointment)
-            .where(
-                Appointment.patient_id == patient.id,
-                Appointment.start_time > current_time,
-            )
-            .order_by(Appointment.start_time.asc())
-        )
+    return AppointmentRepository(session).list_upcoming_for_patient(
+        patient.id,
+        utc_time(clinic_now(timezone_name, now)),
     )

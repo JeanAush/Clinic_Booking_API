@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 
 from app.core.config import get_settings
+from app.core.exceptions import ServiceError, service_error_response
 from app.routers.appointments import router as appointments_router
 from app.routers.doctors import router as doctors_router
 from app.routers.health import router as health_router
@@ -15,6 +16,7 @@ app = FastAPI(
     debug=settings.debug,
     version="0.1.0",
 )
+app.add_exception_handler(ServiceError, service_error_response)
 app.include_router(health_router)
 app.include_router(appointments_router)
 app.include_router(doctors_router)

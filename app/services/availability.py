@@ -3,13 +3,13 @@
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
-from app.models.appointment import Appointment, AppointmentStatus
-from app.models.doctor import Doctor
+from app.repositories.appointments import AppointmentRepository
+from app.repositories.doctors import DoctorRepository
 from app.services.appointment_rules import APPOINTMENT_DURATION, MINIMUM_BOOKING_NOTICE
+from app.utils.timezones import clinic_now
 
 
 def get_doctor_availability(
@@ -21,23 +21,20 @@ def get_doctor_availability(
 ) -> list[datetime]:
     """Return unbooked, bookable 30-minute clinic-local slots for a doctor."""
 
-    doctor = session.get(Doctor, doctor_id)
+    doctor = DoctorRepository(session).get(doctor_id)
     if doctor is None:
         raise NotFoundError("Doctor not found.")
 
     clinic_timezone = ZoneInfo(timezone_name)
-    current_time = (now or datetime.now(clinic_timezone)).astimezone(clinic_timezone)
+    current_time = clinic_now(timezone_name, now)
     day_start = datetime.combine(appointment_date, datetime.min.time(), tzinfo=clinic_timezone)
     day_end = day_start + timedelta(days=1)
 
-    booked_appointments = session.scalars(
-        select(Appointment).where(
-            Appointment.doctor_id == doctor.id,
-            Appointment.status == AppointmentStatus.BOOKED,
-            Appointment.start_time < day_end.astimezone(UTC),
-            Appointment.end_time > day_start.astimezone(UTC),
-        )
-    ).all()
+    booked_appointments = AppointmentRepository(session).list_active_for_doctor_between(
+        doctor.id,
+        day_start,
+        day_end,
+    )
     booked_ranges = [
         (appointment.start_time.astimezone(UTC), appointment.end_time.astimezone(UTC))
         for appointment in booked_appointments
