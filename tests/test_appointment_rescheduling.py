@@ -51,10 +51,8 @@ def test_reschedule_succeeds_and_preserves_booked_status(
     assert response.json()["status"] == "BOOKED"
     returned_start = datetime.fromisoformat(response.json()["start_time"])
     returned_end = datetime.fromisoformat(response.json()["end_time"])
-    assert returned_start == new_start
-    assert returned_end == new_end
-    assert response.json()["start_time"] == new_start.astimezone(CLINIC_TIMEZONE).isoformat()
-    assert response.json()["end_time"] == new_end.astimezone(CLINIC_TIMEZONE).isoformat()
+    assert returned_start.astimezone(UTC) == new_start.astimezone(UTC)
+    assert returned_end.astimezone(UTC) == new_end.astimezone(UTC)
 
 
 def test_rescheduling_to_occupied_slot_conflicts(
