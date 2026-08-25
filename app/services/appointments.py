@@ -9,15 +9,18 @@ from app.repositories.appointments import AppointmentRepository
 from app.repositories.doctors import DoctorRepository
 from app.repositories.patients import PatientRepository
 from app.schemas.appointment import AppointmentCancellation, AppointmentCreate, AppointmentReschedule
+from app.models.user import User
+from app.services.authorization import ensure_appointment_access, ensure_patient_can_book
 from app.services.appointment_rules import validate_appointment_schedule
 from app.services.transactions import commit_or_raise_conflict
 
 ACTIVE_SLOT_CONSTRAINT = "ex_appointments_active_doctor_time"
 
 
-def book_appointment(session: Session, appointment_data: AppointmentCreate) -> Appointment:
+def book_appointment(session: Session, appointment_data: AppointmentCreate, user: User) -> Appointment:
     """Validate and persist a booking, including database conflict protection."""
 
+    ensure_patient_can_book(user, appointment_data.patient_id)
     doctor = DoctorRepository(session).get(appointment_data.doctor_id)
     if doctor is None:
         raise NotFoundError("Doctor not found.")
@@ -54,12 +57,14 @@ def cancel_appointment(
     session: Session,
     appointment_id: int,
     cancellation_data: AppointmentCancellation,
+    user: User,
 ) -> Appointment:
     """Cancel an active appointment and record why it was cancelled."""
 
     appointment = AppointmentRepository(session).get(appointment_id)
     if appointment is None:
         raise NotFoundError("Appointment not found.")
+    ensure_appointment_access(user, appointment)
     if appointment.status == AppointmentStatus.CANCELLED:
         raise ConflictError("Appointment is already cancelled.")
 
@@ -74,12 +79,14 @@ def reschedule_appointment(
     session: Session,
     appointment_id: int,
     reschedule_data: AppointmentReschedule,
+    user: User,
 ) -> Appointment:
     """Move an active appointment to a valid, unoccupied slot atomically."""
 
     appointment = AppointmentRepository(session).get(appointment_id)
     if appointment is None:
         raise NotFoundError("Appointment not found.")
+    ensure_appointment_access(user, appointment)
     if appointment.status == AppointmentStatus.CANCELLED:
         raise ConflictError("Cancelled appointments cannot be rescheduled.")
 

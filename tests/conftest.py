@@ -2,6 +2,7 @@
 
 from collections.abc import Generator
 from datetime import UTC, date, datetime, time, timedelta
+import os
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -10,11 +11,17 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+os.environ.setdefault("CLINIC_JWT_SECRET", "test-only-secret-that-is-long-enough-for-jwt")
+
 from app.core.config import get_settings
+from app.core.security import create_access_token, hash_password
 from app.database.connection import get_db_session
 from app.main import app
 from app.models.doctor import Doctor
 from app.models.patient import Patient
+from app.models.user import User, UserRole
+
+TEST_ADMIN_PASSWORD_HASH = "$2b$12$FzLwx7uihcem7uiS3DjwcufcS7ssuFmKrMix5yPzx7KFT.BpFPqSa"
 
 
 @pytest.fixture
@@ -40,10 +47,18 @@ def session() -> Generator[Session, None, None]:
 
 @pytest.fixture
 def client(session: Session) -> Generator[TestClient, None, None]:
-    """Provide a client whose database dependency uses the test transaction."""
+    """Provide an authenticated admin client using the test transaction."""
 
     app.dependency_overrides[get_db_session] = lambda: session
+    admin = User(
+        email=f"admin-{uuid4().hex}@example.test",
+        password_hash=TEST_ADMIN_PASSWORD_HASH,
+        role=UserRole.ADMIN,
+    )
+    session.add(admin)
+    session.flush()
     with TestClient(app) as test_client:
+        test_client.headers.update(authorization_header(admin))
         yield test_client
     app.dependency_overrides.clear()
 
@@ -72,6 +87,42 @@ def patient(session: Session) -> Patient:
     session.add(patient_record)
     session.flush()
     return patient_record
+
+
+@pytest.fixture
+def doctor_user(session: Session, doctor: Doctor) -> User:
+    """Create an authenticated account linked to the doctor fixture."""
+
+    user = User(
+        email=f"doctor-account-{uuid4().hex}@example.test",
+        password_hash=hash_password("doctor-password"),
+        role=UserRole.DOCTOR,
+        doctor_id=doctor.id,
+    )
+    session.add(user)
+    session.flush()
+    return user
+
+
+@pytest.fixture
+def patient_user(session: Session, patient: Patient) -> User:
+    """Create an authenticated account linked to the patient fixture."""
+
+    user = User(
+        email=f"patient-account-{uuid4().hex}@example.test",
+        password_hash=hash_password("patient-password"),
+        role=UserRole.PATIENT,
+        patient_id=patient.id,
+    )
+    session.add(user)
+    session.flush()
+    return user
+
+
+def authorization_header(user: User) -> dict[str, str]:
+    """Return a Bearer header for a persisted test account."""
+
+    return {"Authorization": f"Bearer {create_access_token(user)}"}
 
 
 def future_slot(hour: int = 10, minute: int = 0) -> tuple[datetime, datetime]:

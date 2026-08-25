@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session
 from app.database.connection import SessionLocal
 from app.models.doctor import Doctor
 from app.models.patient import Patient
+from app.models.user import User, UserRole
+from app.core.config import get_settings
+from app.core.security import hash_password
 
 
 DOCTOR_DATA = (
@@ -23,6 +26,9 @@ PATIENT_DATA = (
     ("James Njoroge", "james.njoroge@example.test"),
     ("Mercy Atieno", "mercy.atieno@example.test"),
 )
+
+DEVELOPMENT_PASSWORD = "development-password-only"
+ADMIN_EMAIL = "admin@clinic.test"
 
 
 def seed_doctors(session: Session) -> int:
@@ -53,20 +59,60 @@ def seed_patients(session: Session) -> int:
     return len(patients)
 
 
-def seed_database() -> tuple[int, int]:
+def seed_accounts(session: Session) -> int:
+    """Create development-only accounts for seeded profiles and one administrator."""
+
+    users = list(session.scalars(select(User)))
+    account_emails = {user.email for user in users}
+    doctors = {doctor.email: doctor for doctor in session.scalars(select(Doctor))}
+    patients = {patient.email: patient for patient in session.scalars(select(Patient))}
+    accounts = [
+        User(email=ADMIN_EMAIL, password_hash=hash_password(DEVELOPMENT_PASSWORD), role=UserRole.ADMIN)
+    ]
+    accounts.extend(
+        User(
+            email=email,
+            password_hash=hash_password(DEVELOPMENT_PASSWORD),
+            role=UserRole.DOCTOR,
+            doctor_id=doctor.id,
+        )
+        for email, doctor in doctors.items()
+    )
+    accounts.extend(
+        User(
+            email=email,
+            password_hash=hash_password(DEVELOPMENT_PASSWORD),
+            role=UserRole.PATIENT,
+            patient_id=patient.id,
+        )
+        for email, patient in patients.items()
+    )
+    missing_accounts = [account for account in accounts if account.email not in account_emails]
+    session.add_all(missing_accounts)
+    return len(missing_accounts)
+
+
+def seed_database() -> tuple[int, int, int]:
     """Seed missing development records in a single transaction."""
 
+    if get_settings().app_env not in {"development", "test"}:
+        raise RuntimeError("Seed accounts are limited to development and test environments.")
     with SessionLocal.begin() as session:
         created_doctors = seed_doctors(session)
         created_patients = seed_patients(session)
-    return created_doctors, created_patients
+        session.flush()
+        created_accounts = seed_accounts(session)
+    return created_doctors, created_patients, created_accounts
 
 
 def main() -> None:
     """Seed the database when run as ``python -m app.seed``."""
 
-    created_doctors, created_patients = seed_database()
-    print(f"Seed complete: {created_doctors} doctors and {created_patients} patients created.")
+    created_doctors, created_patients, created_accounts = seed_database()
+    print(
+        "Seed complete: "
+        f"{created_doctors} doctors, {created_patients} patients, and {created_accounts} accounts created."
+    )
 
 
 if __name__ == "__main__":

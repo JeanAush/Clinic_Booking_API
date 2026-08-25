@@ -32,6 +32,18 @@ class ConflictError(ServiceError):
     status_code = 409
 
 
+class AuthenticationError(ServiceError):
+    """Raised when credentials or an access token cannot be authenticated."""
+
+    status_code = 401
+
+
+class ForbiddenError(ServiceError):
+    """Raised when an authenticated account lacks permission for an action."""
+
+    status_code = 403
+
+
 async def service_error_response(_: Request, error: ServiceError) -> JSONResponse:
     """Convert a domain error to the established API error response shape."""
 
