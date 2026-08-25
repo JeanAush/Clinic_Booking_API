@@ -808,11 +808,6 @@ Clinic_Booking_API/
 └── README.md
 ```
 
----
-
-# 25. Assessment Alignment
-
-This project addresses the four sections of the take-home assessment:
 
 ### Section 1: System Design
 
@@ -871,39 +866,3 @@ I chose to make PostgreSQL responsible for the final protection against overlapp
 I chose to keep routers thin and move business rules into services and database operations into repositories. This adds some structure compared with placing everything in route handlers, but it makes the codebase easier to test, understand, and extend as the clinic grows.
 
 ---
-
-# 26. Security Considerations
-
-* Passwords are stored as bcrypt hashes rather than plaintext.
-* JWT secrets are provided through environment variables.
-* Database credentials are provided through environment variables.
-* Production secrets are not stored in source control.
-* Role-based access control protects administrative functionality.
-* Appointment ownership is enforced at the service layer.
-* Database constraints protect appointment integrity.
-* Configuration differs between local, Docker, and production environments.
-
----
-
-# 27. Future Improvements
-
-Possible future extensions include:
-
-* Email/SMS appointment notifications.
-* Doctor-specific schedules for different days of the week.
-* Holiday and leave management.
-* Appointment reminders.
-* Pagination for larger datasets.
-* Audit logging.
-* Refresh tokens and token revocation.
-* Administrative reporting.
-* Rate limiting.
-* More granular permissions.
-* Multiple clinic locations.
-* Recurring availability schedules.
-
----
-
-## License
-
-This project was developed as part of a backend developer take-home assessment.
