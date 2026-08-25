@@ -1,0 +1,59 @@
+name: Pull request CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: clinic_booking
+          POSTGRES_USER: clinic_user
+          POSTGRES_PASSWORD: ci_only_postgres_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U clinic_user -d clinic_booking"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CLINIC_APP_ENV: test
+      CLINIC_DATABASE_URL: postgresql+psycopg://clinic_user:ci_only_postgres_password@localhost:5432/clinic_booking
+      CLINIC_TIMEZONE: Africa/Nairobi
+      CLINIC_JWT_SECRET: ci_only_jwt_secret_for_automated_tests_12345
+      CLINIC_JWT_ALGORITHM: HS256
+      CLINIC_JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Wait for PostgreSQL
+        run: |
+          for attempt in {1..30}; do
+            python -c "import psycopg; psycopg.connect('$CLINIC_DATABASE_URL').close()" && exit 0
+            sleep 1
+          done
+          exit 1
+
+      - name: Apply migrations
+        run: python -m alembic upgrade head
+
+      - name: Run test suite
+        run: python -m pytest -q
